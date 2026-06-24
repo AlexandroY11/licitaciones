@@ -40,5 +40,15 @@ if (isset($routes[$method][$uri])) {
     $ctrl->$metodo();
 } else {
     http_response_code(404);
-    echo json_encode(['error' => 'Ruta no encontrada']);
+
+    $esAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) ||
+        str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
+
+    if ($esAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'mensaje' => 'Ruta no encontrada.']);
+    } else {
+        require_once __DIR__ . '/../views/errors/404.php';
+    }
+    exit;
 }
