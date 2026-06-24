@@ -16,48 +16,66 @@ class OfertaController
      */
     public function index(): void
     {
-        $q           = trim($_GET['q'] ?? '');
-        $porPagina   = 10;
-        $paginaActual = max(1, (int)($_GET['pagina'] ?? 1));
+        if (
+            !empty($_SERVER['HTTP_X_REQUESTED_WITH']) ||
+            str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')
+        ) {
 
-        $query = Oferta::with('actividad')
-            ->orderBy('creado_en', 'desc');
+            $q            = trim($_GET['q'] ?? '');
+            $porPagina    = 10;
+            $paginaActual = max(1, (int)($_GET['pagina'] ?? 1));
 
-        if ($q !== '') {
-            $query->where(function ($builder) use ($q) {
-                $builder->where('consecutivo', 'like', "%{$q}%")
-                    ->orWhere('objeto',      'like', "%{$q}%")
-                    ->orWhere('descripcion', 'like', "%{$q}%");
-            });
+            $query = Oferta::with('actividad')->orderBy('creado_en', 'desc');
+
+            if ($q !== '') {
+                $query->where(function ($builder) use ($q) {
+                    $builder->where('consecutivo', 'like', "%{$q}%")
+                        ->orWhere('objeto',      'like', "%{$q}%")
+                        ->orWhere('descripcion', 'like', "%{$q}%");
+                });
+            }
+
+            $total   = $query->count();
+            $ofertas = $query->skip(($paginaActual - 1) * $porPagina)
+                ->take($porPagina)
+                ->get();
+
+            Response::success([
+                'ofertas'       => $ofertas,
+                'total'         => $total,
+                'pagina'        => $paginaActual,
+                'por_pagina'    => $porPagina,
+                'total_paginas' => ceil($total / $porPagina),
+            ]);
         }
 
-        $total   = $query->count();
-        $ofertas = $query->skip(($paginaActual - 1) * $porPagina)
-            ->take($porPagina)
-            ->get();
-
-        Response::success([
-            'ofertas'      => $ofertas,
-            'total'        => $total,
-            'pagina'       => $paginaActual,
-            'por_pagina'   => $porPagina,
-            'total_paginas' => ceil($total / $porPagina),
-        ]);
+        require_once __DIR__ . '/../../views/ofertas/index.php';
     }
 
-    /**
-     * GET /ofertas/detalle?id=
-     */
     public function detalle(): void
     {
         $id     = (int)($_GET['id'] ?? 0);
         $oferta = Oferta::with(['actividad', 'documentos'])->find($id);
 
         if (!$oferta) {
-            Response::error('Oferta no encontrada.', 404);
+            if (
+                !empty($_SERVER['HTTP_X_REQUESTED_WITH']) ||
+                str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')
+            ) {
+                Response::error('Oferta no encontrada.', 404);
+            }
+            header('Location: /licitaciones/public/ofertas');
+            exit;
         }
 
-        Response::success($oferta);
+        if (
+            !empty($_SERVER['HTTP_X_REQUESTED_WITH']) ||
+            str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')
+        ) {
+            Response::success($oferta);
+        }
+
+        require_once __DIR__ . '/../../views/ofertas/detalle.php';
     }
 
     /**
@@ -66,12 +84,12 @@ class OfertaController
      */
     public function crear(): void
     {
-        require_once __DIR__ . '/../../views/oferta-form.php';
+        require_once __DIR__ . '/../../views/ofertas/form.php';
     }
 
     public function editar(): void
     {
-        require_once __DIR__ . '/../../views/oferta-form.php';
+        require_once __DIR__ . '/../../views/ofertas/form.php';
     }
 
     /**
@@ -147,10 +165,10 @@ class OfertaController
 
         $query = Oferta::with('actividad')->orderBy('creado_en', 'desc');
         if ($q !== '') {
-            $query->where(function($b) use ($q) {
+            $query->where(function ($b) use ($q) {
                 $b->where('consecutivo', 'like', "%{$q}%")
-                ->orWhere('objeto',      'like', "%{$q}%")
-                ->orWhere('descripcion', 'like', "%{$q}%");
+                    ->orWhere('objeto',      'like', "%{$q}%")
+                    ->orWhere('descripcion', 'like', "%{$q}%");
             });
         }
         $ofertas = $query->get();
@@ -159,8 +177,14 @@ class OfertaController
         $sheet       = $spreadsheet->getActiveSheet();
 
         // Cabeceras
-        $cabeceras = ['A' => 'Consecutivo', 'B' => 'Objeto', 'C' => 'Descripción',
-                    'D' => 'Fecha inicio', 'E' => 'Fecha cierre', 'F' => 'Estado'];
+        $cabeceras = [
+            'A' => 'Consecutivo',
+            'B' => 'Objeto',
+            'C' => 'Descripción',
+            'D' => 'Fecha inicio',
+            'E' => 'Fecha cierre',
+            'F' => 'Estado'
+        ];
 
         foreach ($cabeceras as $col => $titulo) {
             $sheet->setCellValue("{$col}1", $titulo);
