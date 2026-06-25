@@ -80,6 +80,16 @@ php bd/importar_actividades.php
 
 > El script descarga automáticamente el archivo Excel desde la fuente oficial, lo procesa en lotes de 500 registros e importa ~48.000 actividades. Requiere conexión a internet en la primera ejecución. Las ejecuciones posteriores usan el archivo en caché local (`bd/unspsc.xlsx`).
 
+### 5.1 (Opcional) Cargar datos de prueba
+
+Para facilitar la evaluación, puedes cargar 20 ofertas de prueba con datos realistas:
+
+```bash
+php bd/seeder.php
+```
+
+> Incluye ofertas en distintos estados (activo, inactivo, cerrado), diferentes monedas y fechas variadas para probar todos los filtros.
+
 ### 6. Configurar el servidor web
 
 **Con Laragon:** coloca el proyecto en `C:\laragon\www\licitaciones\`. Laragon crea automáticamente el virtual host `licitaciones.test`.

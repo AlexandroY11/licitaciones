@@ -21,3 +21,5 @@ Thumbs.db
 .vscode/
 *.suo
 *.user
+
+bd/unspsc.xlsx
