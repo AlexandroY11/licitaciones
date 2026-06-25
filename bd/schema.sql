@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS actividades (
     INDEX idx_clase    (codigo_clase)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+ALTER TABLE actividades
+    ADD FULLTEXT INDEX ft_actividades_busqueda (producto, clase, familia, segmento);
+
 -- ------------------------------------------------------------
 -- Tabla: ofertas
 -- ------------------------------------------------------------

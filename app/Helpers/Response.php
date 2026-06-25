@@ -2,6 +2,11 @@
 
 namespace App\Helpers;
 
+/**
+ * Helper para respuestas HTTP en formato JSON.
+ *
+ * Estandariza respuestas de éxito y error en la API.
+ */
 class Response
 {
     public static function json($data, int $code = 200): void

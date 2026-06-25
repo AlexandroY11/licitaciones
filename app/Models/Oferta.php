@@ -3,17 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Capsule\Manager as DB;
 
 /**
  * Modelo Oferta
- * Representa una licitación en el sistema
+ * Representa una licitación en el sistema.
  */
 class Oferta extends Model
 {
-    protected $table      = 'ofertas';
+    protected $table = 'ofertas';
     protected $primaryKey = 'id';
-    public    $timestamps = false;
+    public $timestamps = false;
 
     protected $fillable = [
         'consecutivo',
@@ -56,14 +55,14 @@ class Oferta extends Model
 
     /**
      * Genera el consecutivo único con formato O-{0001}-{YY}
-     * Usa lockForUpdate para evitar race conditions
+     * Usa lockForUpdate para evitar race conditions.
      */
     public static function generarConsecutivo(): string
     {
-        $anio   = date('y');
-        $ultimo = self::whereRaw("RIGHT(consecutivo, 2) = ?", [$anio])
-            ->lockForUpdate()
-            ->count();
+        $anio = date('y');
+        $ultimo = self::whereRaw('consecutivo LIKE ?', ["O-%-{$anio}"])
+                    ->lockForUpdate()
+                    ->count();
 
         $numero = str_pad($ultimo + 1, 4, '0', STR_PAD_LEFT);
 
