@@ -1,29 +1,76 @@
 <?php $tituloPagina = 'Listado de ofertas'; ?>
-<?php require_once __DIR__ . '/../layout/header.php'; ?>
+<?php require_once __DIR__.'/../layout/header.php'; ?>
 
 <div id="app" v-cloak>
     <div class="card mb-4">
         <div class="card-body">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-8">
-                    <label class="form-label fw-semibold">Buscar oferta</label>
+
+            <!-- Fila principal -->
+            <div class="d-flex gap-2 align-items-center">
+                <div class="flex-grow-1 position-relative">
+                    <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-500);font-size:.875rem"></i>
                     <input
-                        v-model="filtro"
+                        v-model="filtros.q"
                         @input="buscar"
                         type="text"
                         class="form-control"
-                        placeholder="Consecutivo, objeto o descripción..."
+                        style="padding-left:2.25rem"
+                        placeholder="Buscar por consecutivo, objeto o descripción..."
                     >
                 </div>
-                <div class="col-md-4 d-flex gap-2">
-                    <button @click="limpiar" class="btn btn-outline-secondary w-50">
-                        <i class="bi bi-x-circle me-1"></i>Limpiar
-                    </button>
-                    <button @click="exportar" class="btn btn-success w-50">
-                        <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                <button
+                    @click="panelFiltros = !panelFiltros"
+                    class="btn btn-outline-secondary d-flex align-items-center gap-2"
+                    :class="{ 'btn-primary text-white': filtrosActivos }"
+                >
+                    <i class="bi bi-sliders"></i>
+                    Filtros
+                    <span v-if="filtrosActivos" class="badge bg-white text-primary" style="font-size:.7rem">{{ contadorFiltros }}</span>
+                    <i class="bi" :class="panelFiltros ? 'bi-chevron-up' : 'bi-chevron-down'" style="font-size:.75rem"></i>
+                </button>
+                <button @click="exportar" class="btn btn-success d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-excel"></i>
+                    Excel
+                </button>
+            </div>
+
+            <!-- Panel desplegable -->
+            <div v-show="panelFiltros" class="mt-3 pt-3" style="border-top:1px solid var(--gray-200)">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <label class="form-label" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)">Estado</label>
+                        <select v-model="filtros.estado" @change="buscar" class="form-select form-select-sm">
+                            <option value="">Todos</option>
+                            <option value="activo">Activo</option>
+                            <option value="inactivo">Inactivo</option>
+                            <option value="cerrado">Cerrado</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)">Moneda</label>
+                        <select v-model="filtros.moneda" @change="buscar" class="form-select form-select-sm">
+                            <option value="">Todas</option>
+                            <option value="COP">COP</option>
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)">Fecha inicio desde</label>
+                        <input v-model="filtros.fecha_desde" @change="buscar" type="date" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)">Fecha cierre hasta</label>
+                        <input v-model="filtros.fecha_hasta" @change="buscar" type="date" class="form-control form-control-sm">
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end mt-2">
+                    <button @click="limpiarFiltros" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-x-circle me-1"></i>Limpiar filtros
                     </button>
                 </div>
             </div>
+
         </div>
     </div>
 
@@ -64,10 +111,19 @@
                             </span>
                         </td>
                         <td class="text-center">
-                            <a :href="`/licitaciones/public/ofertas/detalle?id=${o.id}`"
-                               class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye me-1"></i>Ver detalle
-                            </a>
+                            <div class="d-flex gap-1 justify-content-center">
+                                <a :href="`/licitaciones/public/ofertas/detalle?id=${o.id}`"
+                                class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye me-1"></i>Ver detalle
+                                </a>
+                                <button
+                                    @click="confirmarCambioEstado(o)"
+                                    class="btn btn-sm"
+                                    :class="o.estado === 'activo' ? 'btn-outline-danger' : 'btn-outline-success'"
+                                >
+                                    <i class="bi" :class="o.estado === 'activo' ? 'bi-slash-circle' : 'bi-check-circle'"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 </tbody>
@@ -101,20 +157,69 @@
             </nav>
         </div>
     </div>
+
+    <!-- Modal confirmar cambio de estado -->
+    <div v-if="modalEstado" class="toast-overlay">
+        <div class="toast-box" style="min-width:340px">
+            <div class="toast-icon" :style="{ background: ofertaEstado.estado === 'activo' ? '#fef2f2' : '#f0fdf4' }">
+                <i class="bi" :class="ofertaEstado.estado === 'activo' ? 'bi-slash-circle text-danger' : 'bi-check-circle text-success'" style="font-size:1.75rem"></i>
+            </div>
+            <div class="toast-title">
+                {{ ofertaEstado.estado === 'activo' ? 'Inhabilitar oferta' : 'Habilitar oferta' }}
+            </div>
+            <div class="toast-subtitle mb-3">
+                ¿Estás seguro que deseas
+                <strong>{{ ofertaEstado.estado === 'activo' ? 'inhabilitar' : 'habilitar' }}</strong>
+                la oferta <strong>{{ ofertaEstado.consecutivo }}</strong>?
+            </div>
+            <div class="d-flex gap-2 justify-content-center">
+                <button class="btn btn-outline-secondary" @click="modalEstado = false">
+                    Cancelar
+                </button>
+                <button
+                    class="btn"
+                    :class="ofertaEstado.estado === 'activo' ? 'btn-danger' : 'btn-success'"
+                    @click="cambiarEstado"
+                    :disabled="cambiandoEstado"
+                >
+                    <span v-if="cambiandoEstado" class="spinner-border spinner-border-sm me-1"></span>
+                    {{ ofertaEstado.estado === 'activo' ? 'Sí, inhabilitar' : 'Sí, habilitar' }}
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; ?>
+<?php require_once __DIR__.'/../layout/footer.php'; ?>
 <script>
 new Vue({
     el: '#app',
     data: {
         ofertas:      [],
-        filtro:       '',
         cargando:     false,
         total:        0,
         paginaActual: 1,
         totalPaginas: 1,
         timer:        null,
+        panelFiltros: false,
+        modalEstado:    false,
+        ofertaEstado:   null,
+        cambiandoEstado: false,
+        filtros: {
+            q:           '',
+            estado:      '',
+            moneda:      '',
+            fecha_desde: '',
+            fecha_hasta: '',
+        },
+    },
+    computed: {
+        filtrosActivos() {
+            return Object.values(this.filtros).some(v => v !== '');
+        },
+        contadorFiltros() {
+            return Object.values(this.filtros).filter(v => v !== '').length;
+        },
     },
     mounted() {
         this.cargarOfertas();
@@ -124,7 +229,7 @@ new Vue({
             this.cargando = true;
             try {
                 const { data } = await axios.get('/licitaciones/public/ofertas', {
-                    params: { q: this.filtro, pagina: this.paginaActual }
+                    params: { ...this.filtros, pagina: this.paginaActual }
                 });
                 if (data.success) {
                     this.ofertas      = data.data.ofertas;
@@ -144,8 +249,8 @@ new Vue({
                 this.cargarOfertas();
             }, 350);
         },
-        limpiar() {
-            this.filtro       = '';
+        limpiarFiltros() {
+            this.filtros = { q: '', estado: '', moneda: '', fecha_desde: '', fecha_hasta: '' };
             this.paginaActual = 1;
             this.cargarOfertas();
         },
@@ -155,8 +260,30 @@ new Vue({
             this.cargarOfertas();
         },
         exportar() {
-            const url = `/licitaciones/public/ofertas/exportar?q=${encodeURIComponent(this.filtro)}`;
-            window.open(url, '_blank');
+            const params = new URLSearchParams({ ...this.filtros });
+            window.open(`/licitaciones/public/ofertas/exportar?${params}`, '_blank');
+        },
+        confirmarCambioEstado(oferta) {
+            this.ofertaEstado = { ...oferta };
+            this.modalEstado  = true;
+        },
+        async cambiarEstado() {
+            this.cambiandoEstado = true;
+            const fd = new FormData();
+            fd.append('id',     this.ofertaEstado.id);
+            fd.append('estado', this.ofertaEstado.estado === 'activo' ? 'inactivo' : 'activo');
+            try {
+                const { data } = await axios.post('/licitaciones/public/ofertas/estado', fd);
+                if (data.success) {
+                    const oferta = this.ofertas.find(o => o.id === this.ofertaEstado.id);
+                    if (oferta) oferta.estado = fd.get('estado');
+                    this.modalEstado = false;
+                }
+            } catch (error) {
+                console.error('Error al cambiar estado:', error);
+            } finally {
+                this.cambiandoEstado = false;
+            }
         },
         truncar(texto, max) {
             return texto?.length > max ? texto.substring(0, max) + '…' : texto;

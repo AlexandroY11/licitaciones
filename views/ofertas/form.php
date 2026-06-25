@@ -1,14 +1,26 @@
 <?php
-$esEdicion    = isset($_GET['id']);
+$esEdicion = isset($_GET['id']);
 $tituloPagina = $esEdicion ? 'Editar oferta' : 'Nueva oferta';
 ?>
-<?php require_once __DIR__ . '/../layout/header.php'; ?>
+<?php require_once __DIR__.'/../layout/header.php'; ?>
 
 <div id="app" v-cloak>
+    <div v-if="guardadoExitoso" class="toast-overlay">
+        <div class="toast-box">
+            <div class="toast-icon">
+                <i class="bi bi-check-lg"></i>
+            </div>
+            <div class="toast-title">¡Oferta guardada!</div>
+            <div class="toast-subtitle">Redirigiendo al listado...</div>
+            <div class="toast-bar">
+                <div class="toast-bar-fill"></div>
+            </div>
+        </div>
+    </div>
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h5 class="fw-semibold mb-0">
-            <i class="bi bi-<?= $esEdicion ? 'pencil' : 'plus-circle' ?> me-2 text-primary"></i>
-            <?= $tituloPagina ?>
+            <i class="bi bi-<?php echo $esEdicion ? 'pencil' : 'plus-circle'; ?> me-2 text-primary"></i>
+            <?php echo $tituloPagina; ?>
         </h5>
         <a href="/licitaciones/public/ofertas" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i>Volver
@@ -95,20 +107,82 @@ $tituloPagina = $esEdicion ? 'Editar oferta' : 'Nueva oferta';
 
                     <div class="col-md-4">
                         <label class="form-label">Actividad <span class="text-danger">*</span></label>
-                        <select
-                            v-model="form.actividad_id"
-                            class="form-select"
-                            :class="{ 'is-invalid': campoInvalido('actividad_id') }"
-                            :disabled="cargandoActividades"
-                        >
-                            <option value="">
-                                {{ cargandoActividades ? 'Cargando...' : 'Seleccione...' }}
-                            </option>
-                            <option v-for="a in actividades" :key="a.id" :value="a.id">
-                                {{ a.producto }}
-                            </option>
-                        </select>
-                        <div class="invalid-feedback">{{ campoInvalido('actividad_id') }}</div>
+
+                        <div v-if="actividadSeleccionada" class="actividad-seleccionada">
+                            <div class="d-flex align-items-start gap-2">
+                                <div class="flex-grow-1">
+                                    <div class="actividad-tag" :title="actividadSeleccionada.segmento + ' › ' + actividadSeleccionada.clase + ' › ' + actividadSeleccionada.producto">
+                                        <i class="bi bi-check-circle-fill me-1 text-success"></i>
+                                        <span class="actividad-tag-text">{{ actividadSeleccionada.producto }}</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1" style="font-size:.75rem">
+                                        {{ actividadSeleccionada.segmento }} › {{ actividadSeleccionada.familia }}
+                                    </small>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0" @click="limpiarActividad">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Buscador -->
+                        <div v-else class="actividad-wrapper">
+                            <div class="actividad-input-wrap">
+                                <i class="bi bi-search actividad-search-icon"></i>
+                                <input
+                                    v-model="busquedaActividad"
+                                    @input="onBuscarActividad"
+                                    @focus="dropdownAbierto = actividades.length > 0"
+                                    @blur="cerrarDropdown"
+                                    type="text"
+                                    class="form-control actividad-input"
+                                    :class="{ 'is-invalid': campoInvalido('actividad_id') }"
+                                    placeholder="Buscar actividad (mín. 3 caracteres)..."
+                                    autocomplete="off"
+                                >
+                                <span v-if="cargandoActividades" class="actividad-spinner">
+                                    <span class="spinner-border spinner-border-sm text-primary"></span>
+                                </span>
+                            </div>
+
+                            <!-- Hint -->
+                            <small v-if="busquedaActividad.length > 0 && busquedaActividad.length < 3" class="text-muted">
+                                Escribe al menos 3 caracteres...
+                            </small>
+                            <small v-else-if="actividades.length === 0 && busquedaActividad.length >= 3 && !cargandoActividades" class="text-muted">
+                                Sin resultados para "{{ busquedaActividad }}"
+                            </small>
+
+                            <!-- Dropdown de resultados -->
+                            <div
+                                v-if="dropdownAbierto && actividades.length > 0"
+                                class="actividad-dropdown"
+                                @mousedown.prevent
+                            >
+                                <div
+                                    v-for="a in actividades"
+                                    :key="a.id"
+                                    class="actividad-option"
+                                    :class="{ 'actividad-option--hover': hoverId === a.id }"
+                                    @mouseenter="hoverId = a.id"
+                                    @mouseleave="hoverId = null"
+                                    @click="elegirActividad(a)"
+                                >
+                                    <div class="actividad-option-titulo">{{ a.producto }}</div>
+                                    <div class="actividad-option-ruta">
+                                        <span>{{ a.segmento }}</span>
+                                        <i class="bi bi-chevron-right"></i>
+                                        <span>{{ a.familia }}</span>
+                                        <i class="bi bi-chevron-right"></i>
+                                        <span>{{ a.clase }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="invalid-feedback d-block" v-if="campoInvalido('actividad_id')">
+                            {{ campoInvalido('actividad_id') }}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -204,7 +278,7 @@ $tituloPagina = $esEdicion ? 'Editar oferta' : 'Nueva oferta';
                                 <button
                                     type="button"
                                     class="btn btn-sm btn-outline-danger"
-                                    @click="borrarDocumento(d.id)"
+                                    @click="confirmarEliminarDocumento(d)"
                                 >
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -265,15 +339,48 @@ $tituloPagina = $esEdicion ? 'Editar oferta' : 'Nueva oferta';
             </div>
         </div>
     </div>
+
+    <!-- MODAL DE ELIMINACIÓN -->
+    <div v-if="modalEliminarDoc" class="toast-overlay">
+        <div class="toast-box" style="min-width:340px">
+
+            <div class="toast-icon" style="background:#fef2f2">
+                <i class="bi bi-trash text-danger" style="font-size:1.75rem"></i>
+            </div>
+
+            <div class="toast-title">Eliminar documento</div>
+
+            <div class="toast-subtitle mb-3">
+                ¿Estás seguro que deseas eliminar el documento
+                <strong>{{ documentoEliminar?.titulo }}</strong>?
+            </div>
+
+            <div class="d-flex gap-2 justify-content-center">
+                <button class="btn btn-outline-secondary" @click="modalEliminarDoc = false">
+                    Cancelar
+                </button>
+
+                <button class="btn btn-danger" @click="borrarDocumento">
+                    Sí, eliminar
+                </button>
+            </div>
+
+        </div>
+    </div>
 </div>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; ?>
+<?php require_once __DIR__.'/../layout/footer.php'; ?>
 <script>
 new Vue({
     el: '#app',
     data: {
-        esEdicion:           <?= $esEdicion ? 'true' : 'false' ?>,
-        ofertaId:            <?= (int)($_GET['id'] ?? 0) ?>,
+        esEdicion:            <?php echo $esEdicion ? 'true' : 'false'; ?>,
+        guardadoExitoso: false,
+        dropdownAbierto: false,
+        hoverId: null,
+        ofertaId:             <?php echo (int) ($_GET['id'] ?? 0); ?>,
+        modalEliminarDoc: false,
+        documentoEliminar: null,
         form: {
             objeto:       '',
             descripcion:  '',
@@ -284,24 +391,30 @@ new Vue({
             hora_inicio:  '',
             fecha_cierre: '',
             hora_cierre:  '',
+
         },
-        actividades:         [],
-        cargandoActividades: false,
-        documentos:          [],
-        errores:             [],
-        mensaje:             '',
-        guardando:           false,
-        erroresBackend:      {},
-        modalDocumento:      false,
+        // Actividades con debounce
+        actividades:          [],
+        busquedaActividad:    '',
+        actividadSeleccionada: null,
+        cargandoActividades:  false,
+        timerActividad:       null,
+
+        documentos:           [],
+        errores:              [],
+        mensaje:              '',
+        guardando:            false,
+        erroresBackend:       {},
+        modalDocumento:       false,
         docForm: { titulo: '', descripcion: '', archivo: null },
-        docError:            '',
-        subiendoDoc:         false,
+        docError:             '',
+        subiendoDoc:          false,
     },
     computed: {
         formularioValido() {
             const f = this.form;
             return f.objeto && f.descripcion && f.moneda &&
-                   f.presupuesto > 0 && f.actividad_id &&
+                   parseFloat(f.presupuesto) > 0 && f.actividad_id &&
                    f.fecha_inicio && f.hora_inicio &&
                    f.fecha_cierre && f.hora_cierre;
         },
@@ -310,23 +423,69 @@ new Vue({
         },
     },
     async mounted() {
-        await this.cargarActividades();
         if (this.esEdicion && this.ofertaId) {
             await this.cargarOferta();
         }
     },
     methods: {
-        async cargarActividades() {
+        // ── Actividades con debounce ──────────────────────────
+        onBuscarActividad() {
+            clearTimeout(this.timerActividad);
+
+            // Limpia resultados si borra el texto
+            if (this.busquedaActividad.length < 3) {
+                this.actividades = [];
+                return;
+            }
+
+            // Espera 400ms después de que el usuario deja de escribir
+            this.timerActividad = setTimeout(() => {
+                this.buscarActividades();
+            }, 400);
+        },
+        elegirActividad(actividad) {
+            this.form.actividad_id     = actividad.id;
+            this.actividadSeleccionada = actividad;
+            this.actividades           = [];
+            this.busquedaActividad     = '';
+            this.dropdownAbierto       = false;
+        },
+        cerrarDropdown() {
+            // Pequeño delay para permitir que el click en la opción se registre
+            setTimeout(() => { this.dropdownAbierto = false; }, 150);
+        },
+        async buscarActividades() {
             this.cargandoActividades = true;
             try {
-                const { data } = await axios.get('/licitaciones/public/api/actividades');
-                if (data.success) this.actividades = data.data;
+                const { data } = await axios.get('/licitaciones/public/api/actividades', {
+                    params: { q: this.busquedaActividad, pagina: 1 }
+                });
+                if (data.success) {
+                    this.actividades = data.data.actividades;
+                    this.dropdownAbierto = this.actividades.length > 0; 
+                }
             } catch (error) {
-                console.error('Error al cargar actividades:', error);
+                console.error('Error al buscar actividades:', error);
             } finally {
                 this.cargandoActividades = false;
             }
         },
+        seleccionarActividad() {
+            const encontrada = this.actividades.find(a => a.id == this.form.actividad_id);
+            if (encontrada) {
+                this.actividadSeleccionada = encontrada;
+                this.actividades           = [];
+                this.busquedaActividad     = '';
+            }
+        },
+        limpiarActividad() {
+            this.actividadSeleccionada = null;
+            this.form.actividad_id     = '';
+            this.busquedaActividad     = '';
+            this.actividades           = [];
+        },
+
+        // ── Oferta ───────────────────────────────────────────
         async cargarOferta() {
             try {
                 const { data } = await axios.get(`/licitaciones/public/ofertas/detalle?id=${this.ofertaId}`);
@@ -339,11 +498,16 @@ new Vue({
                         presupuesto:  o.presupuesto,
                         actividad_id: o.actividad_id,
                         fecha_inicio: o.fecha_inicio,
-                        hora_inicio:  o.hora_inicio,
+                        hora_inicio:  o.hora_inicio?.substring(0, 5),
                         fecha_cierre: o.fecha_cierre,
-                        hora_cierre:  o.hora_cierre,
+                        hora_cierre:  o.hora_cierre?.substring(0, 5),
                     };
                     this.documentos = o.documentos || [];
+
+                    // Precarga la actividad seleccionada en edición
+                    if (o.actividad) {
+                        this.actividadSeleccionada = o.actividad;
+                    }
                 }
             } catch (error) {
                 console.error('Error al cargar oferta:', error);
@@ -355,6 +519,8 @@ new Vue({
         campoInvalido(campo) {
             return this.erroresBackend[campo] || null;
         },
+
+        // ── Guardar ──────────────────────────────────────────
         async guardar() {
             this.errores        = [];
             this.erroresBackend = {};
@@ -379,15 +545,16 @@ new Vue({
             try {
                 const { data } = await axios.post(url, fd);
                 if (data.success) {
-                    this.mensaje = data.mensaje;
-                    if (!this.esEdicion) {
-                        setTimeout(() => { window.location.href = '/licitaciones/public/ofertas'; }, 1500);
-                    }
+                    // Muestra overlay con barra de progreso y redirige al terminar
+                    this.guardadoExitoso = true;
+                    setTimeout(() => {
+                        window.location.href = '/licitaciones/public/ofertas';
+                    }, 1900); // coincide con la animación de progress (1.8s + margen)
                 }
             } catch ({ response }) {
                 if (response?.data?.errores) {
                     this.erroresBackend = response.data.errores;
-                    this.errores = Object.values(response.data.errores);
+                    this.errores        = Object.values(response.data.errores);
                 } else {
                     this.errores = ['Ocurrió un error inesperado. Intente de nuevo.'];
                 }
@@ -395,6 +562,8 @@ new Vue({
                 this.guardando = false;
             }
         },
+
+        // ── Documentos ───────────────────────────────────────
         abrirModalDocumento() {
             this.docForm  = { titulo: '', descripcion: '', archivo: null };
             this.docError = '';
@@ -434,19 +603,31 @@ new Vue({
                 this.subiendoDoc = false;
             }
         },
-        async borrarDocumento(id) {
-            if (!confirm('¿Eliminar este documento?')) return;
+        async borrarDocumento() {
+            const id = this.documentoEliminar.id;
+
             const fd = new FormData();
             fd.append('id', id);
+
             try {
-                const { data } = await axios.post('/licitaciones/public/ofertas/documento/borrar', fd);
+                const { data } = await axios.post(
+                    '/licitaciones/public/ofertas/documento/borrar',
+                    fd
+                );
+
                 if (data.success) {
                     this.documentos = this.documentos.filter(d => d.id !== id);
+                    this.modalEliminarDoc = false;
+                    this.documentoEliminar = null;
                 }
             } catch ({ response }) {
                 alert(response?.data?.mensaje || 'No se pudo eliminar.');
             }
         },
+        confirmarEliminarDocumento(doc) {
+            this.documentoEliminar = doc;
+            this.modalEliminarDoc = true;
+        }
     },
 });
 </script>
